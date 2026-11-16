@@ -1,0 +1,65 @@
+commit 369b7c8156f0735ff28913d21ca89a10ae5388c6
+Author: Biswarup Mukherjee <biswarup.mukherjee1208@gmail.com>
+Date:   Wed Oct 21 18:25:18 2026 +0200
+
+    Add worm TV study pipeline and fix parallel-beam projection scaling
+    
+    - experiments/worm_tv: zip-streamed worm loader, arc masks and paired noise,
+      Track B digital phantom, R2 case builder, worm-restricted evaluator
+      (contours, interior homogeneity, density bias, withheld-view error),
+      training wrapper and restartable job queue with a disk guard
+    - parallel-beam rendering used an identity projection and tan(fov/2)=1, which
+      is only valid for a detector spanning [-1, 1]; use the true detector extent
+      (unchanged for square [-1, 1] detectors and for cone beam)
+    - TIGRE geometry uses a 0.01 px detector offset to avoid zero views at 0/90 deg
+
+diff --git a/r2_gaussian/dataset/cameras.py b/r2_gaussian/dataset/cameras.py
+index f4f13bc..4f02ff1 100644
+--- a/r2_gaussian/dataset/cameras.py
++++ b/r2_gaussian/dataset/cameras.py
+@@ -46,6 +46,11 @@ class Camera(nn.Module):
+         self.FoVy = FoVy
+         self.mode = mode
+         self.image_name = image_name
++        # Half detector extent (u, v) in scene units; used as tan(fov/2) for parallel beam.
++        self.parallel_half_extent = (
++            float(scanner_cfg["sDetector"][1]) / 2.0,
++            float(scanner_cfg["sDetector"][0]) / 2.0,
++        )
+ 
+         try:
+             self.data_device = torch.device(data_device)
+diff --git a/r2_gaussian/gaussian/render_query.py b/r2_gaussian/gaussian/render_query.py
+index d889edb..a028198 100644
+--- a/r2_gaussian/gaussian/render_query.py
++++ b/r2_gaussian/gaussian/render_query.py
+@@ -102,8 +102,9 @@ def render(
+     # Set up rasterization configuration
+     mode = viewpoint_camera.mode
+     if mode == 0:
+-        tanfovx = 1.0
+-        tanfovy = 1.0
++        # Pixels per scene unit = W / (2 * tanfov): use the true detector half-extent
++        # (equals the original 1.0 when the detector spans [-1, 1]).
++        tanfovx, tanfovy = getattr(viewpoint_camera, "parallel_half_extent", (1.0, 1.0))
+     elif mode == 1:
+         tanfovx = math.tan(viewpoint_camera.FoVx * 0.5)
+         tanfovy = math.tan(viewpoint_camera.FoVy * 0.5)
+diff --git a/r2_gaussian/utils/graphics_utils.py b/r2_gaussian/utils/graphics_utils.py
+index 23f0147..44cbd48 100644
+--- a/r2_gaussian/utils/graphics_utils.py
++++ b/r2_gaussian/utils/graphics_utils.py
+@@ -113,8 +113,12 @@ def getProjectionMatrix(fovX, fovY, mode, scanner_cfg):
+         # P[2, 3] = -(far + near) / (far - near)
+         # P[3, 3] = z_sign
+ 
+-        # Projection matrix is eye
++        # Orthographic map from view coordinates to NDC. The original code used the identity,
++        # which is only correct when the (scaled) detector spans [-1, 1] in both directions;
++        # this reduces to the identity in that case and also handles non-square detectors.
+         P = torch.eye(4)
++        P[0, 0] = 2.0 / float(scanner_cfg["sDetector"][1])  # u: image width
++        P[1, 1] = 2.0 / float(scanner_cfg["sDetector"][0])  # v: image height
+     elif mode == 1:
+         znear = 0.01
+         zfar = 100.0

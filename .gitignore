@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+.cache/
+data/
+work/
+runs/
+logs/
+third_party/
+results/*
+!results/SUMMARY.md
+jax_port/*.npz
+.venv*/
