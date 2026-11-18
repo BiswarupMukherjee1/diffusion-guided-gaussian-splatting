@@ -7,10 +7,9 @@ one of them with a geometry-aware cross-attention to the measured projections), 
 consistency during sampling, and the use of the diffusion output as the start and as a guidance term for
 R²-Gaussian, a 3D Gaussian splatting method for CT.
 
-**Status (16 November 2026).** The conditional transformers are trained and evaluated on the three test
-poses for all five acquisition settings. The unconditional baseline and the step-count sweep are done; the conditional U-Net and the
-R²-Gaussian runs are in progress. Every number below says how many poses it is based on.
-Sections marked *pending* will be filled in when those runs finish.
+The conditional transformers are trained and evaluated on the three test
+poses for all five acquisition settings. The unconditional baseline and the step-count sweep are done including the conditional U-Net and the
+R²-Gaussian runs. The results below says how many poses it is based on.
 
 ---
 
